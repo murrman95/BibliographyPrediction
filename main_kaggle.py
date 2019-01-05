@@ -201,15 +201,13 @@ if saved:
 y_test=[]
 print("Features construction for Testing...")
 step=0
-for source,sink,link in set_test: ##set_test: ##
+for source,sink in set_test: ##set_test: ##
     step+=1
     if step%1000==0:    print("Step:",step,"/",len(set_test))
     if not saved:
         test_features.append(features(source,sink))
-    y_test.append(link)
 test_features=np.array(test_features)
 test_features = preprocessing.scale(test_features)
-y_test=np.array(y_test)
 if not saved:
     np.save("./save/test_features.npy", test_features)
 
