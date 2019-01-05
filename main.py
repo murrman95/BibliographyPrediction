@@ -26,8 +26,8 @@ with open("data/node_information.csv", "r") as f:
     file = csv.reader(f)
     node = list(file)
 
-ID = [i[0] for i in node]
-year=[i[1] for i in node]
+ID = [int(i[0]) for i in node]
+year=[int(i[1]) for i in node]
 title=[i[2] for i in node]
 authors=[i[3] for i in node]
 name_journal=[i[4] for i in node]
@@ -92,29 +92,32 @@ set= np.array([values[0].split(" ") for values in set_file]).astype(int)
 """
 Cut the set for implementation purpose
 """
-remain = 10000
-set = set[:remain]
+# number = 10000
+# to_keep = np.random.choice(range(len(set)), number)
+# set = [set[i] for i in to_keep]
 
 #creates the graph
-G=nx.Graph()
+diG=nx.DiGraph()
 #adds the list of papers' IDs
-G.add_nodes_from(ID)
+diG.add_nodes_from(ID)
 #adds the corresponding links between the paper (training set), links when link_test==1
 ##we only keep 90% of the set for testing perpose
 for ID_source_train,ID_sink_train,link_train in set[:int(len(set)*testtrain)]: #[:int(len(set)*testtrain)]
     if link_train==1:
-        G.add_edge(ID_source_train,ID_sink_train)
+        diG.add_edge(ID_source_train,ID_sink_train)
 #G.edges() to print all the edges
 
 #check the number of edges
 # G.number_of_edges()
+G = nx.Graph(diG)
+print(diG.nodes)
 
 #########
 def features(paper1,paper2):
     """
         outputs the array of the features to input for paper1 and paper 2 comparison
     """
-    idx_paper1,idx_paper2=ID.index(str(paper1)),ID.index(str(paper2))
+    idx_paper1,idx_paper2=ID.index(paper1),ID.index(paper2)
     # print(abstract[ID.index(str(paper1))])
     # print(abstract[idx_paper1])
 
@@ -136,50 +139,69 @@ def features(paper1,paper2):
 
     same_journal = int(name_journal[idx_paper1] == name_journal[idx_paper2])
     try:
-        distance=len(nx.shortest_path(G, str(paper1), str(paper2)))
+        distance=len(nx.shortest_path(G, paper1, paper2))
     except:
         distance=0
     years_diff=int(year[idx_paper1])-int(year[idx_paper2])
     ## features over the graph
-    jaccard = nx.jaccard_coefficient(G, [(str(paper1), str(paper2))])
+    jaccard = nx.jaccard_coefficient(G, [(paper1, paper2)])
     for u, v, p in jaccard:
         jaccard_coef= p
-    adamic_adar=nx.adamic_adar_index(G, [(str(paper1), str(paper2))])
+    adamic_adar=nx.adamic_adar_index(G, [(paper1, paper2)])
     for u, v, p in adamic_adar:
         adamic_adar_coef= p
-    pref_attachement = nx.preferential_attachment(G, [(str(paper1), str(paper2))])
+    pref_attachement = nx.preferential_attachment(G, [(paper1, paper2)])
     for u, v, p in pref_attachement:
         pref_attachement_coef= p
-    common_neig=len(sorted(nx.common_neighbors(G, str(paper1), str(paper2))))
-    return [co_occurence_abstract,same_authors,co_occurence_title,distance,
-    years_diff,jaccard_coef,adamic_adar_coef,pref_attachement_coef,common_neig,tfidf_sim,tfidf_max,same_journal]#,twothree_gram] #
+    common_neig=len(sorted(nx.common_neighbors(G, paper1, paper2)))
 
-train_features=[]
+    degree_features = [diG.in_degree(paper1), diG.out_degree(paper1),
+                       diG.in_degree(paper2), diG.out_degree(paper2)]
+
+    heuristic_graph_features = [distance, jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig]
+
+    node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal] # + [twothree_gram] #
+
+    tfidf = [tfidf_sim, tfidf_max]
+
+    return node_info_features + heuristic_graph_features + degree_features # + tfidf #
+
+saved = False
+train_features= []
+if saved:
+    train_features= np.load("./save/train_features.npy")
 y_train=[]
 print("Features construction for Learning...")
 step=0
 for source,sink,link in set[:int(len(set)*testtrain)]:
     step+=1
     if step%1000==0:    print("Step:",step,"/",int(len(set)*testtrain))
-    train_features.append(features(source,sink))
+    if not saved:
+        train_features.append(features(source,sink))
     y_train.append(link)
 train_features=np.array(train_features)
 train_features = preprocessing.scale(train_features)
 y_train=np.array(y_train)
-
+if not saved:
+    np.save("./save/train_features.npy", train_features)
 
 test_features=[]
+if saved:
+    test_features=np.load("./save/test_features.npy")
 y_test=[]
 print("Features construction for Testing...")
 step=0
 for source,sink,link in set[int(len(set)*testtrain):len(set)]: ##set_test: ##
     step+=1
     if step%1000==0:    print("Step:",step,"/",len(set)-int(len(set)*testtrain))
-    test_features.append(features(source,sink))
+    if not saved:
+        test_features.append(features(source,sink))
     y_test.append(link)
 test_features=np.array(test_features)
 test_features = preprocessing.scale(test_features)
 y_test=np.array(y_test)
+if not saved:
+    np.save("./save/test_features.npy", test_features)
 
 #### For kaggle submission
 # with open("data/testing_set.txt", "r") as f:
@@ -214,11 +236,14 @@ y_test=np.array(y_test)
 """
 Features vizualization
 """
+print(train_features[:10])
+
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+
+### PCA decomposition to vizualize features in 2D
 pca = PCA(n_components=2)
 X = pca.fit_transform(train_features)
-
 fig = plt.figure()
 ax = fig.add_subplot(111)
 ax.scatter(X[:,0], X[:,1], c=y_train)
@@ -226,6 +251,16 @@ ax.set_xlabel('1st dimension')
 ax.set_ylabel('2nd dimension')
 ax.set_title("Vizualization of the PCA decomposition (2D)")
 plt.show()
+
+# ### Vizualize selected features on initial data
+# feat = (i,j) #select the features to vizualize
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# ax.scatter(train_features[:,feat[0]], train_features[:,feat[1]], c=y_train, alpha=0.8)
+# ax.set_xlabel(f'Dimension {feat[0]}')
+# ax.set_ylabel(f'Dimension {feat[1]}')
+# ax.set_title("Vizualization of the features")
+# plt.show()
 
 """
 Model phase (training and testing are in the same paragraphs for one method)
