@@ -83,7 +83,7 @@ tfidf_matrix = tfidf_vectorizer.fit_transform(abstract)
 """
 construction of the graph
 """
-testtrain=1
+testtrain=0.9
 with open("data/training_set.txt", "r") as f:
     file =csv.reader(f, delimiter='\t')
     set_file=list(file)
@@ -92,9 +92,9 @@ set= np.array([values[0].split(" ") for values in set_file]).astype(int)
 """
 Cut the set for implementation purpose
 """
-# number = 10000
-# to_keep = np.random.choice(range(len(set)), number)
-# set = [set[i] for i in to_keep]
+number = 10000
+to_keep = np.random.choice(range(len(set)), number)
+set = [set[i] for i in to_keep]
 
 #creates the graph
 diG=nx.DiGraph()
@@ -170,9 +170,21 @@ def features(paper1,paper2):
         if triad_features[i-4]!=0:
             triad_features[i] = triad_features[i-4]/common_neig
 
+    ## Katz similarity
+    katz = 0
+    beta = 0.005
+    path_length = []
+    for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=3):
+        path_length.append(len(path))
+    a = np.array(path_length)
+    unique, counts = np.unique(a, return_counts=True)
+    dict_katz = dict(zip(unique, counts))
+    for length in dict_katz:
+        katz += dict_katz[length] * beta ** length * length
+
     ## Sum up of all features
     degree_features = [diG.in_degree(paper1), diG.out_degree(paper1), diG.in_degree(paper2), diG.out_degree(paper2)]
-    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig]
+    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig, katz]
     node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal, tfidf_sim] # + [twothree_gram] #
 
     return node_info_features + heuristic_graph_features + degree_features + triad_features
@@ -218,119 +230,92 @@ if not saved:
     np.save("./save/test_features.npy", test_features)
 
 
+"""
+Features vizualization
+"""
 
-### For kaggle submission
-with open("data/testing_set.txt", "r") as f:
-    file =csv.reader(f, delimiter='\t')
-    set_file=list(file)
-set_test= np.array([values[0].split(" ") for values in set_file]).astype(int)
-### than make the changes in the for loops
+print(train_features[:10])
+
+import matplotlib.pyplot as plt
+# plt.plot(train_features[:, 6])
+# plt.show()
+
+# ### PCA decomposition to vizualize features in 2D
+# from sklearn.decomposition import PCA
+# pca = PCA(n_components=2)
+# X = pca.fit_transform(train_features)
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# ax.scatter(X[:,0], X[:,1], c=y_train)
+# ax.set_xlabel('1st dimension')
+# ax.set_ylabel('2nd dimension')
+# ax.set_title("Vizualization of the PCA decomposition (2D)")
+# plt.show()
+
+# ### Vizualize selected features on initial data
+# feat = (i,j) #select the features to vizualize
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# ax.scatter(train_features[:,feat[0]], train_features[:,feat[1]], c=y_train, alpha=0.8)
+# ax.set_xlabel(f'Dimension {feat[0]}')
+# ax.set_ylabel(f'Dimension {feat[1]}')
+# ax.set_title("Vizualization of the features")
+# plt.show()
+
+"""
+Model phase (training and testing are in the same paragraphs for one method)
+"""
+
+def execute_prediction(classifier, classifier_name):
+    classifier.fit(train_features, y_train)
+    y_pred = list(classifier.predict(test_features))
+    f1 = f1_score(y_test, y_pred)
+    print(f"F1 score for {classifier_name}:", f1)
+
+# Prediction rate with SVM
+execute_prediction(svm.LinearSVC(), "SVM")
+
+#prediction rate with RF
+execute_prediction(RandomForestClassifier(n_estimators=100), "Random Forest")
+
+#prediction using logistic regression
+from sklearn.linear_model import LogisticRegression
+execute_prediction(LogisticRegression(), "Logistic Regression")
+
+#MLP classsifier (best so far)
+from sklearn.neural_network import MLPClassifier
+execute_prediction(MLPClassifier(solver='adam', alpha=1e-3, hidden_layer_sizes=(15, 10), random_state=1), "NN MLP with Adam")
+
+# KNN
+from sklearn.neighbors import KNeighborsClassifier
+execute_prediction(KNeighborsClassifier(3), "KNN k=3")
+
 
 # AdaBoost
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.tree import DecisionTreeClassifier
-clf = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R')
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-
-predictions= zip(range(len(set_test)), pred)
-# write predictions to .csv file suitable for Kaggle (just make sure to add the column names)
-with open("predictions.csv","w",newline="") as pred1:
-    fieldnames = ['id', 'category']
-    csv_out = csv.writer(pred1)
-    csv_out.writerow(fieldnames)
-    for row in predictions:
-        csv_out.writerow(row)
-
-#### scored 0.962876 on 90% 10% split against 0.96630 on kaggle
+execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R'), "AdaBoost")
 
 
-# """
-# Features vizualization
-# """
-#
-# print(train_features[:10])
-#
-# import matplotlib.pyplot as plt
-# # plt.plot(train_features[:, 6])
-# # plt.show()
-#
-# # ### PCA decomposition to vizualize features in 2D
-# # from sklearn.decomposition import PCA
-# # pca = PCA(n_components=2)
-# # X = pca.fit_transform(train_features)
-# # fig = plt.figure()
-# # ax = fig.add_subplot(111)
-# # ax.scatter(X[:,0], X[:,1], c=y_train)
-# # ax.set_xlabel('1st dimension')
-# # ax.set_ylabel('2nd dimension')
-# # ax.set_title("Vizualization of the PCA decomposition (2D)")
-# # plt.show()
-#
-# # ### Vizualize selected features on initial data
-# # feat = (i,j) #select the features to vizualize
-# # fig = plt.figure()
-# # ax = fig.add_subplot(111)
-# # ax.scatter(train_features[:,feat[0]], train_features[:,feat[1]], c=y_train, alpha=0.8)
-# # ax.set_xlabel(f'Dimension {feat[0]}')
-# # ax.set_ylabel(f'Dimension {feat[1]}')
-# # ax.set_title("Vizualization of the features")
-# # plt.show()
-#
-# """
-# Model phase (training and testing are in the same paragraphs for one method)
-# """
-#
-# def execute_prediction(classifier, classifier_name):
-#     classifier.fit(train_features, y_train)
-#     y_pred = list(classifier.predict(test_features))
-#     f1 = f1_score(y_test, y_pred)
-#     print(f"F1 score for {classifier_name}:", f1)
-#
-# # Prediction rate with SVM
-# execute_prediction(svm.LinearSVC(), "SVM")
-#
-# #prediction rate with RF
-# execute_prediction(RandomForestClassifier(n_estimators=100), "Random Forest")
-#
-# #prediction using logistic regression
-# from sklearn.linear_model import LogisticRegression
-# execute_prediction(LogisticRegression(), "Logistic Regression")
-#
-# #MLP classsifier (best so far)
-# from sklearn.neural_network import MLPClassifier
-# execute_prediction(MLPClassifier(solver='adam', alpha=1e-3, hidden_layer_sizes=(15, 10), random_state=1), "NN MLP with Adam")
-#
-# # KNN
-# from sklearn.neighbors import KNeighborsClassifier
-# execute_prediction(KNeighborsClassifier(3), "KNN k=3")
-#
-#
-# # AdaBoost
-# from sklearn.ensemble import AdaBoostClassifier
-# from sklearn.tree import DecisionTreeClassifier
-# execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R'), "AdaBoost")
-#
-#
-# #Gaussian processs
-# # from sklearn.gaussian_process import GaussianProcessClassifier
-# # from sklearn.gaussian_process.kernels import RBF
-# # clf=GaussianProcessClassifier(1.0 * RBF(1.0))
-# # clf = clf.fit(train_features, y_train)
-# # pred = list(clf.predict(test_features))
-# # success_rate=sum(y_test==pred)/len(pred)
-# # print("Success_rate with Gaussian process:",success_rate)
-#
-#
-# #Naive Bayes
-# from sklearn.naive_bayes import GaussianNB
-# execute_prediction(GaussianNB(), "Naive Bayes")
-#
-# # # different SVMs
-# # ## doesn't converge
-# # from sklearn.svm import SVC
-# # execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
-#
-# # xgboost
-# import xgboost as xgb
-# execute_prediction(xgb.XGBClassifier(max_depth=2,n_estimaters = 200), "XGBoost")
+#Gaussian processs
+# from sklearn.gaussian_process import GaussianProcessClassifier
+# from sklearn.gaussian_process.kernels import RBF
+# clf=GaussianProcessClassifier(1.0 * RBF(1.0))
+# clf = clf.fit(train_features, y_train)
+# pred = list(clf.predict(test_features))
+# success_rate=sum(y_test==pred)/len(pred)
+# print("Success_rate with Gaussian process:",success_rate)
+
+
+#Naive Bayes
+from sklearn.naive_bayes import GaussianNB
+execute_prediction(GaussianNB(), "Naive Bayes")
+
+# # different SVMs
+# ## doesn't converge
+# from sklearn.svm import SVC
+# execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
+
+# xgboost
+import xgboost as xgb
+execute_prediction(xgb.XGBClassifier(max_depth=2,n_estimaters = 200), "XGBoost")

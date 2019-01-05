@@ -160,9 +160,21 @@ def features(paper1,paper2):
         if triad_features[i-4]!=0:
             triad_features[i] = triad_features[i-4]/common_neig
 
+    ## Katz similarity
+    katz = 0
+    beta = 0.005
+    path_length = []
+    for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=3):
+        path_length.append(len(path))
+    a = np.array(path_length)
+    unique, counts = np.unique(a, return_counts=True)
+    dict_katz = dict(zip(unique, counts))
+    for length in dict_katz:
+        katz += dict_katz[length] * beta ** length * length
+
     ## Sum up of all features
     degree_features = [diG.in_degree(paper1), diG.out_degree(paper1), diG.in_degree(paper2), diG.out_degree(paper2)]
-    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig]
+    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig, katz]
     node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal, tfidf_sim] # + [twothree_gram] #
 
     return node_info_features + heuristic_graph_features + degree_features + triad_features
