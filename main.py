@@ -214,8 +214,18 @@ y_test=np.array(y_test)
 """
 Features vizualization
 """
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+pca = PCA(n_components=2)
+X = pca.fit_transform(train_features)
 
-
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.scatter(X[:,0], X[:,1], c=y_train)
+ax.set_xlabel('1st dimension')
+ax.set_ylabel('2nd dimension')
+ax.set_title("Vizualization of the PCA decomposition (2D)")
+plt.show()
 
 """
 Model phase (training and testing are in the same paragraphs for one method)
