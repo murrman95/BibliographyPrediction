@@ -7,6 +7,7 @@ nltk.download('punkt')
 nltk.download('stopwords')
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import f1_score
 from sklearn import preprocessing
 from sklearn import svm
@@ -39,7 +40,7 @@ One_hot vectors on abstract (usefull for co_occurence computations in features c
 """
 one_hot = CountVectorizer(stop_words="english")
 one_hot_matrix = one_hot.fit_transform(abstract)#.todense()
-one_hot_matrix = one_hot_matrix.toarray()
+# one_hot_matrix = one_hot_matrix.toarray()
 print(one_hot_matrix.shape)
 np.set_printoptions(threshold=np.nan)
 print(sum(one_hot_matrix[1]))
@@ -49,7 +50,7 @@ One_hot vectors on authors (usefull for co_occurence computations in features co
 """
 onehot_authors= CountVectorizer()
 onehot_authors_matrix=onehot_authors.fit_transform(authors)
-onehot_authors_matrix = onehot_authors_matrix.toarray()
+# onehot_authors_matrix = onehot_authors_matrix.toarray()
 print(onehot_authors_matrix.shape)
 print(onehot_authors.get_feature_names())
 
@@ -58,16 +59,15 @@ One_hot vectors on titles (usefull for co_occurence computations in features con
 """
 onehot_titles= CountVectorizer()
 onehot_titles_matrix=onehot_titles.fit_transform(title)
-onehot_titles_matrix = onehot_titles_matrix.toarray()
+# onehot_titles_matrix = onehot_titles_matrix.toarray()
 print(onehot_titles_matrix.shape)
 print(onehot_titles.get_feature_names())
 
 """
 TF-IDF cosine similarity
 """
-tfidf_vectorizer = TfidfVectorizer(min_df = 0, max_df = 1, use_idf = True, stop_words="english")
-features_TFIDF = tfidf_vectorizer.fit_transform(abstract)
-tfidf_matrix = features_TFIDF.toarray()
+tfidf_vectorizer = TfidfVectorizer()
+tfidf_matrix = tfidf_vectorizer.fit_transform(abstract)
 
 
 """
@@ -122,17 +122,17 @@ def features(paper1,paper2):
     # print(abstract[idx_paper1])
 
     #features from info of the nodes
-    co_occurence_abstract=np.dot(one_hot_matrix[idx_paper1],one_hot_matrix[idx_paper2].T)
-    same_authors=np.dot(onehot_authors_matrix[idx_paper1],onehot_authors_matrix[idx_paper2].T)
-    co_occurence_title=np.dot(onehot_titles_matrix[idx_paper1],onehot_titles_matrix[idx_paper2].T)
+    co_occurence_abstract=np.dot(one_hot_matrix[idx_paper1],one_hot_matrix[idx_paper2].T).toarray()[0][0]
+    same_authors=np.dot(onehot_authors_matrix[idx_paper1],onehot_authors_matrix[idx_paper2].T).toarray()[0][0]
+    co_occurence_title=np.dot(onehot_titles_matrix[idx_paper1],onehot_titles_matrix[idx_paper2].T).toarray()[0][0]
 
     #tfidf cosine similarity
-    tf1 = tfidf_matrix[idx_paper1,:]#.toarray() in case tfidf mat is so large that it's stored as a sparse matrix
-    tf2 = tfidf_matrix[idx_paper2,:]#.toarray() in case tfidf mat is so largs that it's stared as a sparse matrix
-    tfidf_sim = np.dot(tf1,tf2)/max((np.linalg.norm(tf1)*np.linalg.norm(tf2)),1e-16)
+    tf1 = tfidf_matrix[idx_paper1]# in case tfidf mat is so large that it's stored as a sparse matrix
+    tf2 = tfidf_matrix[idx_paper2]# in case tfidf mat is so largs that it's stared as a sparse matrix
+    tfidf_sim = cosine_similarity(tf1, tf2)[0][0]
 
-    multiplied_idf = np.dot(tf1,tf2)
-    tfidf_max = np.amax(multiplied_idf)
+    # multiplied_idf = np.dot(tf1,tf2.T)
+    # tfidf_max = np.amax(multiplied_idf)
 
     #VERY COMPUTATIONALLY EXPENSIVE
     #twothree_gram = np.sum(one_got_23gram_matrix[idx_paper1].toarray() * one_got_23gram_matrix[idx_paper2].toarray())
@@ -160,11 +160,9 @@ def features(paper1,paper2):
 
     heuristic_graph_features = [distance, jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig]
 
-    node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal] # + [twothree_gram] #
+    node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal, tfidf_sim] # + [twothree_gram] #
 
-    tfidf = [tfidf_sim, tfidf_max]
-
-    return node_info_features + heuristic_graph_features + degree_features # + tfidf #
+    return node_info_features + heuristic_graph_features + degree_features
 
 saved = False
 train_features= []
@@ -236,12 +234,15 @@ if not saved:
 """
 Features vizualization
 """
+
 print(train_features[:10])
 
-from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
+# plt.plot(train_features[:, 6])
+# plt.show()
 
 ### PCA decomposition to vizualize features in 2D
+from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 X = pca.fit_transform(train_features)
 fig = plt.figure()
@@ -276,7 +277,7 @@ def execute_prediction(classifier, classifier_name):
 execute_prediction(svm.LinearSVC(), "SVM")
 
 #prediction rate with RF
-execute_prediction(RandomForestClassifier(n_estimators=10), "Random Forest")
+execute_prediction(RandomForestClassifier(n_estimators=100), "Random Forest")
 
 #prediction using logistic regression
 from sklearn.linear_model import LogisticRegression
@@ -299,7 +300,6 @@ print("F1 score with NN MLP with Adam:", f1)
 # clf = clf.fit(train_features[:,features], y_train)
 
 
-
 # KNN
 from sklearn.neighbors import KNeighborsClassifier
 execute_prediction(KNeighborsClassifier(3), "KNN k=3")
@@ -307,7 +307,8 @@ execute_prediction(KNeighborsClassifier(3), "KNN k=3")
 
 # AdaBoost
 from sklearn.ensemble import AdaBoostClassifier
-execute_prediction(AdaBoostClassifier(), "AdaBoost")
+from sklearn.tree import DecisionTreeClassifier
+execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=400, algorithm='SAMME.R'), "AdaBoost")
 
 
 #Gaussian processs
@@ -331,4 +332,3 @@ execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
 # xgboost
 import xgboost as xgb
 execute_prediction(xgb.XGBClassifier(max_depth=2,n_estimaters = 200), "XGBoost")
-
