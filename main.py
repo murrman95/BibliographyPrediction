@@ -7,6 +7,7 @@ nltk.download('punkt')
 nltk.download('stopwords')
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import f1_score
 from sklearn import preprocessing
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
@@ -86,7 +87,14 @@ testtrain=0.9
 with open("data/training_set.txt", "r") as f:
     file =csv.reader(f, delimiter='\t')
     set_file=list(file)
-set= [values[0].split(" ") for values in set_file]
+set= np.array([values[0].split(" ") for values in set_file]).astype(int)
+
+"""
+Cut the set for implementation purpose
+"""
+remain = 10000
+set = set[:remain]
+
 #creates the graph
 G=nx.Graph()
 #adds the list of papers' IDs
@@ -94,7 +102,7 @@ G.add_nodes_from(ID)
 #adds the corresponding links between the paper (training set), links when link_test==1
 ##we only keep 90% of the set for testing perpose
 for ID_source_train,ID_sink_train,link_train in set[:int(len(set)*testtrain)]: #[:int(len(set)*testtrain)]
-    if link_train=="1":
+    if link_train==1:
         G.add_edge(ID_source_train,ID_sink_train)
 #G.edges() to print all the edges
 
@@ -148,7 +156,7 @@ def features(paper1,paper2):
 
 train_features=[]
 y_train=[]
-print("Features costruction for Learning...")
+print("Features construction for Learning...")
 step=0
 for source,sink,link in set[:int(len(set)*testtrain)]:
     step+=1
@@ -162,16 +170,16 @@ y_train=np.array(y_train)
 
 test_features=[]
 y_test=[]
-print("Features costruction for Testing...")
+print("Features construction for Testing...")
 step=0
-for source,sink in set[int(len(set)*testtrain):len(set)]: ##set_test: ##
+for source,sink,link in set[int(len(set)*testtrain):len(set)]: ##set_test: ##
     step+=1
     if step%1000==0:    print("Step:",step,"/",len(set)-int(len(set)*testtrain))
     test_features.append(features(source,sink))
-    # y_test.append(link)
+    y_test.append(link)
 test_features=np.array(test_features)
 test_features = preprocessing.scale(test_features)
-# y_test=np.array(y_test)
+y_test=np.array(y_test)
 
 #### For kaggle submission
 # with open("data/testing_set.txt", "r") as f:
@@ -203,6 +211,9 @@ test_features = preprocessing.scale(test_features)
 # #### scored 0.962876 on 90% 10% split against 0.96630 on kaggle
 
 
+"""
+Features vizualization
+"""
 
 
 
@@ -210,29 +221,21 @@ test_features = preprocessing.scale(test_features)
 Model phase (training and testing are in the same paragraphs for one method)
 """
 
-# Prediction rate with SVM
-classifier = svm.LinearSVC()
-classifier.fit(train_features, y_train)
-pred = list(classifier.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate:",success_rate)
+def execute_prediction(classifier, classifier_name):
+    classifier.fit(train_features, y_train)
+    y_pred = list(classifier.predict(test_features))
+    f1 = f1_score(y_test, y_pred)
+    print(f"F1 score for {classifier_name}:", f1)
 
+# Prediction rate with SVM
+execute_prediction(svm.LinearSVC(), "SVM")
 
 #prediction rate with RF
-clf = RandomForestClassifier(n_estimators=10)
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with RF:",success_rate)
-
+execute_prediction(RandomForestClassifier(n_estimators=10), "Random Forest")
 
 #prediction using logistic regression
 from sklearn.linear_model import LogisticRegression
-model = LogisticRegression()
-model.fit(train_features, y_train)
-pred = list(model.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with Logistic regression:",success_rate)
+execute_prediction(LogisticRegression(), "Logistic Regression")
 
 #MLP classsifier (best so far)
 features=(0,1,2,4,5,6,7,8)
@@ -240,9 +243,9 @@ from sklearn.neural_network import MLPClassifier
 clf = MLPClassifier(solver='adam', alpha=1e-3,
             hidden_layer_sizes=(15, 10), random_state=1)
 clf = clf.fit(train_features[:,features], y_train)
-pred = list(clf.predict(test_features[:,features]))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with NN MLP with Adam:",success_rate)
+y_pred = list(clf.predict(test_features[:,features]))
+f1 = f1_score(y_test, y_pred)
+print("F1 score with NN MLP with Adam:", f1)
 # #MLP classsifier
 # features=(0,1,2,4,5,6,7,8)
 # from sklearn.neural_network import MLPClassifier
@@ -254,20 +257,12 @@ print("Success_rate with NN MLP with Adam:",success_rate)
 
 # KNN
 from sklearn.neighbors import KNeighborsClassifier
-clf = KNeighborsClassifier(3)
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with KNN k=3:",success_rate)
+execute_prediction(KNeighborsClassifier(3), "KNN k=3")
 
 
 # AdaBoost
 from sklearn.ensemble import AdaBoostClassifier
-clf = AdaBoostClassifier()
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with AdaBoost:",success_rate)
+execute_prediction(AdaBoostClassifier(), "AdaBoost")
 
 
 #Gaussian processs
@@ -282,24 +277,13 @@ print("Success_rate with AdaBoost:",success_rate)
 
 #Naive Bayes
 from sklearn.naive_bayes import GaussianNB
-clf = GaussianNB()
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with Naive bayes:",success_rate)
+execute_prediction(GaussianNB(), "Naive Bayes")
 
 # different SVMs
 from sklearn.svm import SVC
-clf = SVC(kernel="rbf")
-clf = clf.fit(train_features, y_train)
-pred = list(clf.predict(test_features))
-success_rate=sum(y_test==pred)/len(pred)
-print("Success_rate with SVM:",success_rate)
+execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
 
 # xgboost
 import xgboost as xgb
-xg = xgb.XGBClassifier(max_depth=2,n_estimaters = 200)
-xg.fit(train_features,y_train)
-pred = list(xg.predict(test_features))
-success_rate=sum(ytest==pred)/len(pred)
-print("Success_rate with XGBoost:",success_rate)
+execute_prediction(xgb.XGBClassifier(max_depth=2,n_estimaters = 200), "XGBoost")
+
