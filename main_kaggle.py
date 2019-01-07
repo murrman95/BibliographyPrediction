@@ -88,7 +88,6 @@ with open("data/training_set.txt", "r") as f:
     set_file=list(file)
 set= np.array([values[0].split(" ") for values in set_file]).astype(int)
 
-
 #creates the graph
 diG=nx.DiGraph()
 #adds the list of papers' IDs
@@ -180,7 +179,7 @@ def features(paper1,paper2):
     return node_info_features + heuristic_graph_features + degree_features + triad_features
 #########
 
-saved = False
+saved = True
 train_features= []
 if saved:
     train_features= np.load("./save/kaggle/train_features.npy")
@@ -197,7 +196,7 @@ train_features=np.array(train_features)
 train_features = preprocessing.scale(train_features)
 y_train=np.array(y_train)
 if not saved:
-    np.save("./save/train_features.npy", train_features)
+    np.save("./save/kaggle/train_features.npy", train_features)
 
 
 ### For kaggle submission
@@ -205,7 +204,6 @@ with open("data/testing_set.txt", "r") as f:
     file =csv.reader(f, delimiter='\t')
     set_file=list(file)
 set_test= np.array([values[0].split(" ") for values in set_file]).astype(int)
-### than make the changes in the for loops
 
 test_features=[]
 if saved:
@@ -221,19 +219,29 @@ for source,sink in set_test: ##set_test: ##
 test_features=np.array(test_features)
 test_features = preprocessing.scale(test_features)
 if not saved:
-    np.save("./save/test_features.npy", test_features)
+    np.save("./save/kaggle/test_features.npy", test_features)
 
 
-# AdaBoost
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.tree import DecisionTreeClassifier
-clf = AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R')
+# MLP classifier
+import xgboost as xgb
+clf = xgb.XGBClassifier(silent=True,
+                              scale_pos_weight=1,
+                              learning_rate=0.0001,
+                              colsample_bytree=0.35,
+                              subsample=0.8,
+                              objective='binary:logistic',
+                              n_estimators=100,
+                              max_depth=9,
+                              min_child_weight=2,
+                              gamma=3000,
+                              reg_alpha=3,
+                              nthread=8)
 clf = clf.fit(train_features, y_train)
 pred = list(clf.predict(test_features))
 predictions= zip(range(len(set_test)), pred)
 
 # write predictions to .csv file suitable for Kaggle (just make sure to add the column names)
-with open("predictions.csv","w",newline="") as pred1:
+with open("./save/kaggle/predictions.csv","w",newline="") as pred1:
     fieldnames = ['id', 'category']
     csv_out = csv.writer(pred1)
     csv_out.writerow(fieldnames)

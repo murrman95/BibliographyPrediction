@@ -92,9 +92,9 @@ set= np.array([values[0].split(" ") for values in set_file]).astype(int)
 """
 Cut the set for implementation purpose
 """
-number = 10000
-to_keep = np.random.choice(range(len(set)), number)
-set = [set[i] for i in to_keep]
+# number = 10000
+# to_keep = np.random.choice(range(len(set)), number)
+# set = [set[i] for i in to_keep]
 
 #creates the graph
 diG=nx.DiGraph()
@@ -174,7 +174,7 @@ def features(paper1,paper2):
     katz = 0
     beta = 0.005
     path_length = []
-    for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=3):
+    for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=2):
         path_length.append(len(path))
     a = np.array(path_length)
     unique, counts = np.unique(a, return_counts=True)
@@ -192,7 +192,7 @@ def features(paper1,paper2):
 
 
 
-saved = False
+saved = True
 train_features= []
 if saved:
     train_features= np.load("./save/train_features.npy")
@@ -235,11 +235,11 @@ Features vizualization
 """
 
 print(train_features[:10])
-
-import matplotlib.pyplot as plt
+#
+# import matplotlib.pyplot as plt
 # plt.plot(train_features[:, 6])
 # plt.show()
-
+#
 # ### PCA decomposition to vizualize features in 2D
 # from sklearn.decomposition import PCA
 # pca = PCA(n_components=2)
@@ -271,51 +271,187 @@ def execute_prediction(classifier, classifier_name):
     y_pred = list(classifier.predict(test_features))
     f1 = f1_score(y_test, y_pred)
     print(f"F1 score for {classifier_name}:", f1)
+    return f1
 
-# Prediction rate with SVM
-execute_prediction(svm.LinearSVC(), "SVM")
 
-#prediction rate with RF
-execute_prediction(RandomForestClassifier(n_estimators=100), "Random Forest")
+### Fine tune parameters
 
-#prediction using logistic regression
-from sklearn.linear_model import LogisticRegression
-execute_prediction(LogisticRegression(), "Logistic Regression")
+# ## Regularization term
+# alpha = 1000
+# alphas = []
+# f1_scores = []
+# for k in range(10):
+#     alphas.append(alpha)
+#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
+#     from sklearn.neural_network import MLPClassifier
+#     clf = MLPClassifier(solver='adam', alpha=alpha,activation="relu",
+#                 hidden_layer_sizes=(40), random_state=1, verbose=1)
+#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
+#     pred = list(clf.predict(test_features[:,features])) #[:,features]
+#     # success_rate=sum(y_test==pred)/len(pred)
+#     # print("Success_rate with NN MLP with Adam:",success_rate)
+#     f1 = f1_score(y_test, pred)
+#     print(f"F1 score with NN MLP with Adam, alpha={alpha}:", f1)
+#     f1_scores.append(f1)
+#     alpha /= 3
+# plt.semilogx(alphas, f1_scores)
+# plt.xlabel("Learning rate")
+# plt.ylabel("F1 score")
+# plt.title("F1 score with NN MLP with Adam")
+# plt.show()
+# ### Best alpha for hidden_layers=(40): 4.11
 
-#MLP classsifier (best so far)
+# ## Hidden layers
+# layers = []
+# f1_scores = []
+# for k in range(50,100,5):
+#     layers.append(k)
+#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
+#     from sklearn.neural_network import MLPClassifier
+#     clf = MLPClassifier(solver='adam', alpha=4, activation="relu", tol=1e-6,
+#                 hidden_layer_sizes=(k), random_state=1, verbose=1)
+#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
+#     pred = list(clf.predict(test_features[:,features])) #[:,features]
+#     # success_rate=sum(y_test==pred)/len(pred)
+#     # print("Success_rate with NN MLP with Adam:",success_rate)
+#     f1 = f1_score(y_test, pred)
+#     print(f"F1 score with NN MLP with Adam, hidden_layer_size={k}:", f1)
+#     f1_scores.append(f1)
+# plt.plot(layers, f1_scores)
+# plt.xlabel("Hidden layer size")
+# plt.ylabel("F1 score")
+# plt.title("F1 score with NN MLP with Adam")
+# plt.show()
+# ### Best hidden_layer_size for alpha=4: 70
+
+# ## Learning rate
+# l_rate = 1e-3
+# l_rates = []
+# f1_scores = []
+# for k in range(10):
+#     l_rates.append(l_rate)
+#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
+#     from sklearn.neural_network import MLPClassifier
+#     clf = MLPClassifier(solver='adam', alpha=4, activation="relu", learning_rate_init= l_rate,
+#                 hidden_layer_sizes=(70), random_state=1, verbose=1)
+#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
+#     pred = list(clf.predict(test_features[:,features])) #[:,features]
+#     # success_rate=sum(y_test==pred)/len(pred)
+#     # print("Success_rate with NN MLP with Adam:",success_rate)
+#     f1 = f1_score(y_test, pred)
+#     print(f"F1 score with NN MLP with Adam, l_rate={l_rate}:", f1)
+#     f1_scores.append(f1)
+#     l_rate/=3
+# plt.semilogx(l_rates, f1_scores)
+# plt.xlabel("Initial learning rate")
+# plt.ylabel("F1 score")
+# plt.title("F1 score with NN MLP with Adam")
+# plt.show()
+# ### Best initial_learning_rate = 0.001
+
+
+## MLP
+test_features = preprocessing.scale(test_features)
+train_features = preprocessing.scale(train_features)
+
 from sklearn.neural_network import MLPClassifier
-execute_prediction(MLPClassifier(solver='adam', alpha=1e-3, hidden_layer_sizes=(15, 10), random_state=1), "NN MLP with Adam")
+clf = MLPClassifier(solver='adam', alpha=1e-5,activation="relu",
+            hidden_layer_sizes=(65,10), tol=1e-5,max_iter=300)
+clf = clf.fit(train_features, y_train)
 
-# KNN
-from sklearn.neighbors import KNeighborsClassifier
-execute_prediction(KNeighborsClassifier(3), "KNN k=3")
-
-
-# AdaBoost
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.tree import DecisionTreeClassifier
-execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R'), "AdaBoost")
+pred = list(clf.predict(test_features))
+predictions= zip(range(len(set_test)), pred)
 
 
-#Gaussian processs
-# from sklearn.gaussian_process import GaussianProcessClassifier
-# from sklearn.gaussian_process.kernels import RBF
-# clf=GaussianProcessClassifier(1.0 * RBF(1.0))
-# clf = clf.fit(train_features, y_train)
-# pred = list(clf.predict(test_features))
-# success_rate=sum(y_test==pred)/len(pred)
-# print("Success_rate with Gaussian process:",success_rate)
 
-
-#Naive Bayes
-from sklearn.naive_bayes import GaussianNB
-execute_prediction(GaussianNB(), "Naive Bayes")
-
-# # different SVMs
-# ## doesn't converge
-# from sklearn.svm import SVC
-# execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
-
+# # Prediction rate with SVM
+# execute_prediction(svm.LinearSVC(), "SVM")
+#
+# #prediction rate with RF
+# execute_prediction(RandomForestClassifier(n_estimators=100), "Random Forest")
+#
+# #prediction using logistic regression
+# from sklearn.linear_model import LogisticRegression
+# execute_prediction(LogisticRegression(), "Logistic Regression")
+#
+# #MLP classsifier (best so far)
+# from sklearn.neural_network import MLPClassifier
+# execute_prediction(MLPClassifier(solver='adam', alpha=1e-3, hidden_layer_sizes=(15, 10), random_state=1), "NN MLP with Adam")
+#
+# # KNN
+# from sklearn.neighbors import KNeighborsClassifier
+# execute_prediction(KNeighborsClassifier(3), "KNN k=3")
+#
+#
+# # AdaBoost
+# from sklearn.ensemble import AdaBoostClassifier
+# from sklearn.tree import DecisionTreeClassifier
+# execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R'), "AdaBoost")
+#
+#
+# #Gaussian processs
+# # from sklearn.gaussian_process import GaussianProcessClassifier
+# # from sklearn.gaussian_process.kernels import RBF
+# # clf=GaussianProcessClassifier(1.0 * RBF(1.0))
+# # clf = clf.fit(train_features, y_train)
+# # pred = list(clf.predict(test_features))
+# # success_rate=sum(y_test==pred)/len(pred)
+# # print("Success_rate with Gaussian process:",success_rate)
+#
+#
+# #Naive Bayes
+# from sklearn.naive_bayes import GaussianNB
+# execute_prediction(GaussianNB(), "Naive Bayes")
+#
+# # # different SVMs
+# # ## doesn't converge
+# # from sklearn.svm import SVC
+# # execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
+#
 # xgboost
 import xgboost as xgb
-execute_prediction(xgb.XGBClassifier(max_depth=2,n_estimaters = 200), "XGBoost")
+from sklearn.metrics import f1_score
+
+# # max_score = 0.9580077524149387
+# max_depth=9
+# min_child_weight=2
+# gamma=3000
+# colsample_bytree = 0.35
+# subssample = 0.8
+# reg_alpha = 3
+# learning_rate = 0.0001
+# best_f1 = 0
+# best_params = {}
+# for learning_rate in [10**(-k) for k in range(4,7)]:
+#     model = xgb.XGBClassifier(silent=True,
+#                               scale_pos_weight=1,
+#                               learning_rate=0.0001,
+#                               colsample_bytree=0.35,
+#                               subsample=0.8,
+#                               objective='binary:logistic',
+#                               n_estimators=100,
+#                               max_depth=9,
+#                               min_child_weight=2,
+#                               gamma=3000,
+#                               reg_alpha=3,
+#                               nthread=8)
+#     f1 = execute_prediction(model, f"XBGBoost with learning_rate={learning_rate}")
+#     if f1 > best_f1:
+#         best_params = {learning_rate}
+#         best_f1 = f1
+# print("Best parameters:", best_params)
+# print("Best score:", best_f1)
+
+# from sklearn.model_selection import GridSearchCV
+# param_test1 = {
+#  'max_depth':range(3,4,2),
+#  'min_child_weight':range(1,2,2)
+# }
+# gsearch1 = GridSearchCV(estimator = xgb.XGBClassifier(learning_rate = 0.1, n_estimators=140, max_depth=5,
+#  min_child_weight=1, gamma=0, subsample=0.8, colsample_bytree=0.8,
+#  objective= 'binary:logistic', scale_pos_weight=1, seed=27),
+#  param_grid = param_test1, scoring='roc_auc',n_jobs=-1,iid=False, cv=5, verbose=3)
+# gsearch1.fit(train_features, y_train)
+# print("Grid score:", gsearch1.grid_scores_)
+# print("Best params:", gsearch1.best_params_)
+# print("Best score:", gsearch1.best_score_)
