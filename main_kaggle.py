@@ -182,7 +182,7 @@ def features(paper1,paper2):
 saved = True
 train_features= []
 if saved:
-    train_features= np.load("./save/kaggle/train_features.npy")
+    train_features= np.load("./save/kaggle/train_features_full.npy")
 y_train=[]
 print("Features construction for Learning...")
 step=0
@@ -207,7 +207,7 @@ set_test= np.array([values[0].split(" ") for values in set_file]).astype(int)
 
 test_features=[]
 if saved:
-    test_features=np.load("./save/kaggle/test_features.npy")
+    test_features=np.load("./save/kaggle/test_features_full.npy")
 y_test=[]
 print("Features construction for Testing...")
 step=0
@@ -222,23 +222,34 @@ if not saved:
     np.save("./save/kaggle/test_features.npy", test_features)
 
 
-# MLP classifier
-import xgboost as xgb
-clf = xgb.XGBClassifier(silent=True,
-                              scale_pos_weight=1,
-                              learning_rate=0.0001,
-                              colsample_bytree=0.35,
-                              subsample=0.8,
-                              objective='binary:logistic',
-                              n_estimators=100,
-                              max_depth=9,
-                              min_child_weight=2,
-                              gamma=3000,
-                              reg_alpha=3,
-                              nthread=8)
+## MLP
+test_features = preprocessing.scale(test_features)
+train_features = preprocessing.scale(train_features)
+
+from sklearn.neural_network import MLPClassifier
+clf = MLPClassifier(solver='adam', alpha=1.74e-4,activation="relu",
+            hidden_layer_sizes=(65,18), tol=5e-5, max_iter=250, verbose=1)
 clf = clf.fit(train_features, y_train)
 pred = list(clf.predict(test_features))
 predictions= zip(range(len(set_test)), pred)
+
+# # XGBoost classifier
+# import xgboost as xgb
+# clf = xgb.XGBClassifier(silent=True,
+#                               scale_pos_weight=1,
+#                               learning_rate=0.0001,
+#                               colsample_bytree=0.35,
+#                               subsample=0.8,
+#                               objective='binary:logistic',
+#                               n_estimators=100,
+#                               max_depth=9,
+#                               min_child_weight=2,
+#                               gamma=3000,
+#                               reg_alpha=3,
+#                               nthread=8)
+# clf = clf.fit(train_features, y_train)
+# pred = list(clf.predict(test_features))
+# predictions= zip(range(len(set_test)), pred)
 
 # write predictions to .csv file suitable for Kaggle (just make sure to add the column names)
 with open("./save/kaggle/predictions.csv","w",newline="") as pred1:

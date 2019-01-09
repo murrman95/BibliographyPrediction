@@ -195,7 +195,7 @@ def features(paper1,paper2):
 saved = True
 train_features= []
 if saved:
-    train_features= np.load("./save/train_features.npy")
+    train_features= np.load("./save/90.npy")
 y_train=[]
 print("Features construction for Learning...")
 step=0
@@ -213,7 +213,7 @@ if not saved:
 
 test_features=[]
 if saved:
-    test_features=np.load("./save/test_features.npy")
+    test_features=np.load("./save/10.npy")
 y_test=[]
 print("Features construction for Testing...")
 step=0
@@ -270,98 +270,77 @@ def execute_prediction(classifier, classifier_name):
     classifier.fit(train_features, y_train)
     y_pred = list(classifier.predict(test_features))
     f1 = f1_score(y_test, y_pred)
-    print(f"F1 score for {classifier_name}:", f1)
+    success_rate = sum(y_pred==y_test)/len(y_pred)
+    print(f"F1 score for {classifier_name}: {f1}")
+    print(f"Success rate for {classifier_name}: {success_rate}")
     return f1
+
+# ## MLP
+# test_features = preprocessing.scale(test_features)
+# train_features = preprocessing.scale(train_features)
+#
+# from sklearn.neural_network import MLPClassifier
+# clf = MLPClassifier(solver='adam', alpha=1e-5,activation="relu",
+#             hidden_layer_sizes=(65,10), tol=1e-4,max_iter=100, verbose=1)
+# clf = clf.fit(train_features, y_train)
+# y_pred = list(clf.predict(test_features))
+# f1 = f1_score(y_test, y_pred)
+# print(f"F1 score for MLP:", f1)
 
 
 ### Fine tune parameters
 
 # ## Regularization term
-# alpha = 1000
-# alphas = []
+# import matplotlib.pyplot as plt
+# alphas = [1.735e-4, 1.74e-4, 1.745e-4, 1.75e-4, 1.755e-4]
 # f1_scores = []
-# for k in range(10):
-#     alphas.append(alpha)
-#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
+# for alpha in alphas:
 #     from sklearn.neural_network import MLPClassifier
-#     clf = MLPClassifier(solver='adam', alpha=alpha,activation="relu",
-#                 hidden_layer_sizes=(40), random_state=1, verbose=1)
-#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
-#     pred = list(clf.predict(test_features[:,features])) #[:,features]
-#     # success_rate=sum(y_test==pred)/len(pred)
-#     # print("Success_rate with NN MLP with Adam:",success_rate)
-#     f1 = f1_score(y_test, pred)
-#     print(f"F1 score with NN MLP with Adam, alpha={alpha}:", f1)
+#     clf = MLPClassifier(solver='adam', alpha=alpha, activation="relu",
+#                         hidden_layer_sizes=(65, 18), tol=1e-4, max_iter=150, verbose=1)
+#     f1 = execute_prediction(clf, f"NN MLP with Adam, alpha={alpha}")
 #     f1_scores.append(f1)
-#     alpha /= 3
-# plt.semilogx(alphas, f1_scores)
-# plt.xlabel("Learning rate")
+# plt.plot(alphas, f1_scores)
+# plt.xlabel("Alpha regularization")
 # plt.ylabel("F1 score")
 # plt.title("F1 score with NN MLP with Adam")
 # plt.show()
-# ### Best alpha for hidden_layers=(40): 4.11
+# ### Best alpha for hidden_layers=(65, 18): 1.74e-4
 
-# ## Hidden layers
-# layers = []
-# f1_scores = []
-# for k in range(50,100,5):
-#     layers.append(k)
-#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
-#     from sklearn.neural_network import MLPClassifier
-#     clf = MLPClassifier(solver='adam', alpha=4, activation="relu", tol=1e-6,
-#                 hidden_layer_sizes=(k), random_state=1, verbose=1)
-#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
-#     pred = list(clf.predict(test_features[:,features])) #[:,features]
-#     # success_rate=sum(y_test==pred)/len(pred)
-#     # print("Success_rate with NN MLP with Adam:",success_rate)
-#     f1 = f1_score(y_test, pred)
-#     print(f"F1 score with NN MLP with Adam, hidden_layer_size={k}:", f1)
-#     f1_scores.append(f1)
-# plt.plot(layers, f1_scores)
-# plt.xlabel("Hidden layer size")
-# plt.ylabel("F1 score")
-# plt.title("F1 score with NN MLP with Adam")
-# plt.show()
-# ### Best hidden_layer_size for alpha=4: 70
+## Hidden layers
+import matplotlib.pyplot as plt
+layers = []
+f1_scores = []
+for size2 in range(12,31,3):
+    layers.append(size2)
+    from sklearn.neural_network import MLPClassifier
+    clf = MLPClassifier(solver='adam', alpha=1e-5, activation="relu",
+                        hidden_layer_sizes=(65, size2), tol=1e-4, max_iter=150, verbose=1)
+    f1 = execute_prediction(clf, f"NN MLP with Adam, size2={size2}")
+    f1_scores.append(f1)
+plt.plot(layers, f1_scores)
+plt.xlabel("size2")
+plt.ylabel("F1 score")
+plt.title("F1 score with NN MLP with Adam")
+plt.show()
+### Best hidden_layer_size for alpha=1e-5: (65, 18)
 
-# ## Learning rate
-# l_rate = 1e-3
-# l_rates = []
+# ## Tolerance
+# import matplotlib.pyplot as plt
+# tols = [1e-4, 5e-5, 1e-5, 5e-6]
 # f1_scores = []
-# for k in range(10):
-#     l_rates.append(l_rate)
-#     features=(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22)
+# for tol in tols:
+#     tols.append(tol)
 #     from sklearn.neural_network import MLPClassifier
-#     clf = MLPClassifier(solver='adam', alpha=4, activation="relu", learning_rate_init= l_rate,
-#                 hidden_layer_sizes=(70), random_state=1, verbose=1)
-#     clf = clf.fit(train_features[:,features], y_train) #[:,features]
-#     pred = list(clf.predict(test_features[:,features])) #[:,features]
-#     # success_rate=sum(y_test==pred)/len(pred)
-#     # print("Success_rate with NN MLP with Adam:",success_rate)
-#     f1 = f1_score(y_test, pred)
-#     print(f"F1 score with NN MLP with Adam, l_rate={l_rate}:", f1)
-#     f1_scores.append(f1)
-#     l_rate/=3
-# plt.semilogx(l_rates, f1_scores)
-# plt.xlabel("Initial learning rate")
+#     clf = MLPClassifier(solver='adam', alpha=4e-4, activation="relu", tol= tol, max_iter=250,
+#                 hidden_layer_sizes=(65,18), verbose=1)
+#     f1 = execute_prediction(clf, f"NN MLP with Adam, tol={tol}")
+# plt.semilogx(tols, f1_scores)
+# plt.xlabel("Tolerance")
 # plt.ylabel("F1 score")
 # plt.title("F1 score with NN MLP with Adam")
 # plt.show()
 # ### Best initial_learning_rate = 0.001
-
-
-## MLP
-test_features = preprocessing.scale(test_features)
-train_features = preprocessing.scale(train_features)
-
-from sklearn.neural_network import MLPClassifier
-clf = MLPClassifier(solver='adam', alpha=1e-5,activation="relu",
-            hidden_layer_sizes=(65,10), tol=1e-5,max_iter=300)
-clf = clf.fit(train_features, y_train)
-
-pred = list(clf.predict(test_features))
-predictions= zip(range(len(set_test)), pred)
-
 
 
 # # Prediction rate with SVM
@@ -409,8 +388,8 @@ predictions= zip(range(len(set_test)), pred)
 # # execute_prediction(SVC(kernel="rbf"), "SVM (rbf kernel)")
 #
 # xgboost
-import xgboost as xgb
-from sklearn.metrics import f1_score
+# import xgboost as xgb
+# from sklearn.metrics import f1_score
 
 # # max_score = 0.9580077524149387
 # max_depth=9
@@ -441,6 +420,20 @@ from sklearn.metrics import f1_score
 #         best_f1 = f1
 # print("Best parameters:", best_params)
 # print("Best score:", best_f1)
+
+# clf = xgb.XGBClassifier(silent=False,
+#                               scale_pos_weight=1,
+#                               learning_rate=0.0001,
+#                               colsample_bytree=0.35,
+#                               subsample=0.8,
+#                               objective='binary:logistic',
+#                               n_estimators=100,
+#                               max_depth=1,
+#                               min_child_weight=2,
+#                               gamma=3000,
+#                               reg_alpha=3,
+#                               nthread=8)
+# execute_prediction(clf, "XGBoost")
 
 # from sklearn.model_selection import GridSearchCV
 # param_test1 = {
