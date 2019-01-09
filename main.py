@@ -290,6 +290,7 @@ print(f"F1 score for MLP:", f1)
 # plt.ylabel("F1 score")
 # plt.title("F1 score with NN MLP with Adam")
 # plt.show()
+# Best alpha: 1.74 for hidden_layers_size (65, 21)
 
     ## Example of loop for best hyper-parameters (here best NN structure)
 layers = []
@@ -306,7 +307,7 @@ plt.xlabel("size2")
 plt.ylabel("F1 score")
 plt.title("F1 score with NN MLP with Adam")
 plt.show()
-### Best hidden_layer_size for alpha=1e-5: (65, 18)
+### Best hidden_layer_size for alpha=1e-5: (65, 21)
 
 # ## Tolerance
 # import matplotlib.pyplot as plt
@@ -323,7 +324,7 @@ plt.show()
 # plt.ylabel("F1 score")
 # plt.title("F1 score with NN MLP with Adam")
 # plt.show()
-# ### Best initial_learning_rate = 0.001
+# ### Best Tolerance rate = 5e-5
 
 
 """
@@ -412,6 +413,7 @@ plt.show()
 #                               nthread=8)
 # execute_prediction(clf, "XGBoost")
 
+# Example of code for fine tuning the parameters of XGBoost function.
 # from sklearn.model_selection import GridSearchCV
 # param_test1 = {
 #  'max_depth':range(3,4,2),
