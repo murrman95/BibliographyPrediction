@@ -12,17 +12,17 @@ from sklearn.metrics import f1_score
 from sklearn import preprocessing
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+
 
 """
-    Possible changes
- - Lot of work to do on possible features from node_information.csv
- - Should try with nice random forests and XGBoost
- - Add other graph features
+    Guillaume Dufau (guillaume.dufau@polytechnique.edu)
+    Christopher Murray (christophe.murray@polytechnique.edu)
+    Léon Zheng (leon.zheng@polytechnique.edu)
+"""
 
- Tiny details:
- -  Put binary = True in CountVectorizer constuction
-
-"""#
+ ## Loads the node information
 with open("data/node_information.csv", "r") as f:
     file = csv.reader(f)
     node = list(file)
@@ -34,94 +34,64 @@ authors=[i[3] for i in node]
 name_journal=[i[4] for i in node]
 abstract=[i[5] for i in node]
 
-
 """
-One_hot vectors on abstract (usefull for co_occurence computations in features construction function)
+    Construction of the graph
 """
-one_hot = CountVectorizer(stop_words="english")
-one_hot_matrix = one_hot.fit_transform(abstract)#.todense()
-# one_hot_matrix = one_hot_matrix.toarray()
-print(one_hot_matrix.shape)
-np.set_printoptions(threshold=np.nan)
-print(sum(one_hot_matrix[1]))
-
-"""
-One_hot vectors on authors (usefull for co_occurence computations in features construction function)
-"""
-onehot_authors= CountVectorizer()
-onehot_authors_matrix=onehot_authors.fit_transform(authors)
-# onehot_authors_matrix = onehot_authors_matrix.toarray()
-print(onehot_authors_matrix.shape)
-print(onehot_authors.get_feature_names())
-
-"""
-One_hot vectors on titles (usefull for co_occurence computations in features construction function)
-"""
-onehot_titles= CountVectorizer()
-onehot_titles_matrix=onehot_titles.fit_transform(title)
-# onehot_titles_matrix = onehot_titles_matrix.toarray()
-print(onehot_titles_matrix.shape)
-print(onehot_titles.get_feature_names())
-
-"""
-TF-IDF cosine similarity
-"""
-tfidf_vectorizer = TfidfVectorizer()
-tfidf_matrix = tfidf_vectorizer.fit_transform(abstract)
-
-
-"""
-23-gram co-occurence ONLY USE THIS FOR THE FINAL GO. IT IS VERY VERY COMPUTATIONALLY DEMANDING
-"""
-#one_got_23gram = CountVectorizer(binary = True, stop_words = "english", ngram_range = (2,3))
-#one_got_23gram_matrix = one_got_23gram.fit_transform(abstract)
-
-
-#####co_occurence computation (VERY EXPENSIVE)
-# co_occurance_abstract=np.dot(cv_matrix,np.transpose(cv_matrix))
-# co_occurance_abstract=np.dot(cv_matrix,cv_matrix.T)
-"""
-construction of the graph
-"""
-testtrain=0.9
+testtrain=0.9 #ratio for the hold out cross validation
 with open("data/training_set.txt", "r") as f:
     file =csv.reader(f, delimiter='\t')
     set_file=list(file)
 set= np.array([values[0].split(" ") for values in set_file]).astype(int)
 
-"""
-Cut the set for implementation purpose
-"""
-# number = 10000
-# to_keep = np.random.choice(range(len(set)), number)
-# set = [set[i] for i in to_keep]
-
-#creates the graph
+## Creates the oriented graph
 diG=nx.DiGraph()
 #adds the list of papers' IDs
 diG.add_nodes_from(ID)
 #adds the corresponding links between the paper (training set), links when link_test==1
-##we only keep 90% of the set for testing perpose
-for ID_source_train,ID_sink_train,link_train in set[:int(len(set)*testtrain)]: #[:int(len(set)*testtrain)]
+for ID_source_train,ID_sink_train,link_train in set[:int(len(set)*testtrain)]:
     if link_train==1:
         diG.add_edge(ID_source_train,ID_sink_train)
-#G.edges() to print all the edges
 
-#check the number of edges
-# G.number_of_edges()
+  ## Checks the number of edges and creates the non-oriented graph G
 G = nx.Graph(diG)
 print(diG.nodes)
 
-#########
+
+"""
+    Construction of the features
+"""
+    ## Useful graph-based features computed at once
+page_rank = nx.pagerank_scipy(G)
+hub_score, authority_score = nx.hits(G)
+
+    ##One_hot vectors on abstract (usefull for co_occurence computations in features construction function)
+one_hot = CountVectorizer(stop_words="english")
+one_hot_matrix = one_hot.fit_transform(abstract)#.todense()
+
+    ## One_hot vectors on authors (usefull for co_occurence computations in features construction function)
+onehot_authors= CountVectorizer()
+onehot_authors_matrix=onehot_authors.fit_transform(authors)
+
+    ##One_hot vectors on titles (usefull for co_occurence computations in features construction function)
+onehot_titles= CountVectorizer()
+onehot_titles_matrix=onehot_titles.fit_transform(title)
+
+    ##TF-IDF cosine similarity
+tfidf_vectorizer = TfidfVectorizer()
+tfidf_matrix = tfidf_vectorizer.fit_transform(abstract)
+
+    ## 23-gram co-occurence. VERY VERY COMPUTATIONALLY DEMANDING
+#one_got_23gram = CountVectorizer(binary = True, stop_words = "english", ngram_range = (2,3))
+#one_got_23gram_matrix = one_got_23gram.fit_transform(abstract)
+
+
 def features(paper1,paper2):
     """
-        outputs the array of the features to input for paper1 and paper 2 comparison
+        Outputs the array of the features to input in the prediction models
     """
     idx_paper1,idx_paper2=ID.index(paper1),ID.index(paper2)
-    # print(abstract[ID.index(str(paper1))])
-    # print(abstract[idx_paper1])
 
-    #features from info of the nodes
+    ## Features from contextual information of the nodes
     co_occurence_abstract=np.dot(one_hot_matrix[idx_paper1],one_hot_matrix[idx_paper2].T).toarray()[0][0]
     same_authors=np.dot(onehot_authors_matrix[idx_paper1],onehot_authors_matrix[idx_paper2].T).toarray()[0][0]
     co_occurence_title=np.dot(onehot_titles_matrix[idx_paper1],onehot_titles_matrix[idx_paper2].T).toarray()[0][0]
@@ -131,19 +101,19 @@ def features(paper1,paper2):
     tf2 = tfidf_matrix[idx_paper2]# in case tfidf mat is so largs that it's stared as a sparse matrix
     tfidf_sim = cosine_similarity(tf1, tf2)[0][0]
 
-    # multiplied_idf = np.dot(tf1,tf2.T)
-    # tfidf_max = np.amax(multiplied_idf)
-
     #VERY COMPUTATIONALLY EXPENSIVE
     #twothree_gram = np.sum(one_got_23gram_matrix[idx_paper1].toarray() * one_got_23gram_matrix[idx_paper2].toarray())
 
     same_journal = int(name_journal[idx_paper1] == name_journal[idx_paper2])
-    try:
-        distance=len(nx.shortest_path(G, paper1, paper2))
-    except:
-        distance=0
-    years_diff=int(year[idx_paper1])-int(year[idx_paper2])
-    ## features over the graph
+
+    ## Irrelevant tested feature
+    # try:
+    #     distance=1/len(nx.shortest_path(G, paper1, paper2))
+    # except:
+    #     distance=0
+    # years_diff=int(year[idx_paper1])-int(year[idx_paper2])
+
+    ## Features over the graph
     jaccard = nx.jaccard_coefficient(G, [(paper1, paper2)])
     for u, v, p in jaccard:
         jaccard_coef= p
@@ -170,29 +140,34 @@ def features(paper1,paper2):
         if triad_features[i-4]!=0:
             triad_features[i] = triad_features[i-4]/common_neig
 
-    ## Katz similarity
-    katz = 0
-    beta = 0.005
-    path_length = []
-    for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=2):
-        path_length.append(len(path))
-    a = np.array(path_length)
-    unique, counts = np.unique(a, return_counts=True)
-    dict_katz = dict(zip(unique, counts))
-    for length in dict_katz:
-        katz += dict_katz[length] * beta ** length * length
+    #VERY COMPUTATIONALLY EXPENSIVE
+    ## Katz similarity (Very expansive) -> not used a final feature
+    # katz = 0
+    # beta = 0.005
+    # path_length = []
+    # for path in nx.all_simple_paths(G, source=source, target=sink, cutoff=3):
+    #     path_length.append(len(path))
+    # a = np.array(path_length)
+    # unique, counts = np.unique(a, return_counts=True)
+    # dict_katz = dict(zip(unique, counts))
+    # for length in dict_katz:
+    #     katz += dict_katz[length] * beta ** length * length
 
     ## Sum up of all features
     degree_features = [diG.in_degree(paper1), diG.out_degree(paper1), diG.in_degree(paper2), diG.out_degree(paper2)]
-    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig, katz]
-    node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal, tfidf_sim] # + [twothree_gram] #
+    heuristic_graph_features = [jaccard_coef, adamic_adar_coef, pref_attachement_coef, common_neig] # one ccan add if computed katz
+    node_info_features = [co_occurence_abstract, same_authors, co_occurence_title, years_diff, same_journal, tfidf_sim] # + [twothree_gram] if computed #
 
-    return node_info_features + heuristic_graph_features + degree_features + triad_features
-#########
+    heuristic_graph_features.append([page_rank[paper2],hub_score[paper1],authority_score[paper2]])
 
+    return node_info_features + heuristic_graph_features + degree_features + triad_features  ## 25 features in total
 
+"""
+    Build the data sets based on given files
+"""
+## To save the X_train,y_train matrices. Expansive to compute
+saved = False
 
-saved = True
 train_features= []
 if saved:
     train_features= np.load("./save/90.npy")
@@ -231,28 +206,32 @@ if not saved:
 
 
 """
-Features vizualization
+    Data visualization
 """
 
-print(train_features[:10])
-#
-# import matplotlib.pyplot as plt
-# plt.plot(train_features[:, 6])
-# plt.show()
-#
-# ### PCA decomposition to vizualize features in 2D
-# from sklearn.decomposition import PCA
-# pca = PCA(n_components=2)
-# X = pca.fit_transform(train_features)
-# fig = plt.figure()
-# ax = fig.add_subplot(111)
-# ax.scatter(X[:,0], X[:,1], c=y_train)
-# ax.set_xlabel('1st dimension')
-# ax.set_ylabel('2nd dimension')
-# ax.set_title("Vizualization of the PCA decomposition (2D)")
-# plt.show()
+    ## Features importance plot
+model =RandomForestClassifier(n_estimators=100, max_depth=9,
+                             random_state=0)
+model.fit(train_features, y_train)
+(pd.Series(model.feature_importances_)
+.nlargest(7)
+.plot(kind='barh',title="Features importance according to RandomForestClassifier"))
 
-# ### Vizualize selected features on initial data
+    ## Correlation heat map
+plt.imshow(np.corrcoef(train_features.T), cmap='hot', interpolation='nearest')
+plt.show()
+
+    ## PCA decomposition
+pca = PCA(n_components=2)
+X = pca.fit_transform(train_features)
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.scatter(X[:,0], X[:,1], c=y_train)
+ax.set_xlabel('1st dimension')
+ax.set_ylabel('2nd dimension')
+ax.set_title("Vizualization of the PCA decomposition (2D)")
+plt.show()
+    ##Vizualize selected features on initial data
 # feat = (i,j) #select the features to vizualize
 # fig = plt.figure()
 # ax = fig.add_subplot(111)
@@ -262,8 +241,14 @@ print(train_features[:10])
 # ax.set_title("Vizualization of the features")
 # plt.show()
 
+    ## Another way to see least useful features (but they still change positively the prediictions quality)
+print(train_features[0])
+X_new = SelectKBest(f_classif, k=20).fit_transform(train_features, y_train)
+print(X_new[0])
+
 """
-Model phase (training and testing are in the same paragraphs for one method)
+    Model construction + prediction using our cross validation to select best models
+    + plotting example for hyper-parameters choices
 """
 
 def execute_prediction(classifier, classifier_name):
@@ -275,18 +260,17 @@ def execute_prediction(classifier, classifier_name):
     print(f"Success rate for {classifier_name}: {success_rate}")
     return f1
 
-# ## MLP
-# test_features = preprocessing.scale(test_features)
-# train_features = preprocessing.scale(train_features)
-#
-# from sklearn.neural_network import MLPClassifier
-# clf = MLPClassifier(solver='adam', alpha=1e-5,activation="relu",
-#             hidden_layer_sizes=(65,10), tol=1e-4,max_iter=100, verbose=1)
-# clf = clf.fit(train_features, y_train)
-# y_pred = list(clf.predict(test_features))
-# f1 = f1_score(y_test, y_pred)
-# print(f"F1 score for MLP:", f1)
+    ## MLP (with parameters corresponding to one of 2 best kaggle scores)
+test_features = preprocessing.scale(test_features)
+train_features = preprocessing.scale(train_features)
 
+from sklearn.neural_network import MLPClassifier
+clf = MLPClassifier(solver='adam', alpha=1.74e-4,activation="relu",
+            hidden_layer_sizes=(65,18), tol=5e-5, max_iter=250, verbose=1)
+clf = clf.fit(train_features, y_train)
+y_pred = list(clf.predict(test_features))
+f1 = f1_score(y_test, y_pred)
+print(f"F1 score for MLP:", f1)
 
 ### Fine tune parameters
 
@@ -305,10 +289,8 @@ def execute_prediction(classifier, classifier_name):
 # plt.ylabel("F1 score")
 # plt.title("F1 score with NN MLP with Adam")
 # plt.show()
-# ### Best alpha for hidden_layers=(65, 18): 1.74e-4
 
-## Hidden layers
-import matplotlib.pyplot as plt
+    ## Example of loop for best hyper-parameters (here best NN structure)
 layers = []
 f1_scores = []
 for size2 in range(12,31,3):
@@ -343,6 +325,10 @@ plt.show()
 # ### Best initial_learning_rate = 0.001
 
 
+"""
+    Other tested models (with tunned hyper-parameters)
+"""
+
 # # Prediction rate with SVM
 # execute_prediction(svm.LinearSVC(), "SVM")
 #
@@ -366,16 +352,6 @@ plt.show()
 # from sklearn.ensemble import AdaBoostClassifier
 # from sklearn.tree import DecisionTreeClassifier
 # execute_prediction(AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=10), n_estimators=300, algorithm='SAMME.R'), "AdaBoost")
-#
-#
-# #Gaussian processs
-# # from sklearn.gaussian_process import GaussianProcessClassifier
-# # from sklearn.gaussian_process.kernels import RBF
-# # clf=GaussianProcessClassifier(1.0 * RBF(1.0))
-# # clf = clf.fit(train_features, y_train)
-# # pred = list(clf.predict(test_features))
-# # success_rate=sum(y_test==pred)/len(pred)
-# # print("Success_rate with Gaussian process:",success_rate)
 #
 #
 # #Naive Bayes
